@@ -11,6 +11,9 @@ class ImageProcessor:
         self.bounding_box = None
         self.cropped_image = None
         self.crop_stats = None
+        # New variables to track resized crop and bbox coordinates
+        self.resized_cropped = None
+        self.bbox_coords = None
     
     def detect_signature_bbox(self, image):
         """Detect bounding box for signature (simplified example)."""
@@ -38,6 +41,8 @@ class ImageProcessor:
         """Crop image using detected bounding box."""
         x_min, y_min, x_max, y_max = self.bounding_box
         cropped = image.crop((x_min, y_min, x_max, y_max))
+        # store cropped
+        self.cropped_image = cropped
         return cropped
     
     def calculate_crop_stats(self, original, cropped):
@@ -56,27 +61,40 @@ class ImageProcessor:
 def process_image(image):
     """Main processing function - processes on button click."""
     if image is None:
-        return None, None, None, None
+        # match the number of outputs below (6 outputs besides the input)
+        return None, None, None, None, None, None
     
     processor = ImageProcessor()
     processor.original_image = image
     
     # Detect bounding box
     processor.bounding_box = processor.detect_signature_bbox(image)
+    # Store bbox coords as a readable string (new variable)
+    x_min, y_min, x_max, y_max = processor.bounding_box
+    processor.bbox_coords = f"x_min: {x_min}, y_min: {y_min}, x_max: {x_max}, y_max: {y_max}"
     
     # Generate preview images
     preview_with_bbox = processor.draw_bounding_box(image)
     cropped = processor.crop_image(image)
     
+    # Create a resized version of the cropped image for a preview (new variable)
+    try:
+        resized_cropped = cropped.resize((256, 256), Image.LANCZOS)
+    except Exception:
+        resized_cropped = cropped.copy()
+    processor.resized_cropped = resized_cropped
+    
     # Calculate statistics
     stats = processor.calculate_crop_stats(image, cropped)
     stats_text = "\n".join([f"{k}: {v}" for k, v in stats.items()])
     
-    return preview_with_bbox, cropped, stats_text, image
+    # New outputs to return: bbox coordinates (text) and resized cropped preview (image)
+    return preview_with_bbox, cropped, stats_text, image, processor.bbox_coords, processor.resized_cropped
 
 def reset_app():
     """Reset all outputs."""
-    return None, None, None, None
+    # Return Nones for: input_image, preview_with_bbox, cropped_preview, crop_stats_display, final_output, bbox_coords_display, resized_cropped_preview
+    return None, None, None, None, None, None, None
 
 # Build Gradio Interface
 with gr.Blocks(title="Signature Vectorizer - Crop Preview") as demo:
@@ -111,6 +129,12 @@ with gr.Blocks(title="Signature Vectorizer - Crop Preview") as demo:
                 type="pil",
                 interactive=False
             )
+            # New Gradio component: resized cropped preview
+            resized_cropped_preview = gr.Image(
+                label="Cropped & Resized Preview",
+                type="pil",
+                interactive=False
+            )
         
         with gr.Column():
             gr.Markdown("### Crop Statistics")
@@ -118,6 +142,12 @@ with gr.Blocks(title="Signature Vectorizer - Crop Preview") as demo:
                 label="Statistics",
                 interactive=False,
                 lines=6
+            )
+            # New Gradio component: bounding box coordinates
+            bbox_coords_display = gr.Textbox(
+                label="Bounding Box Coordinates",
+                interactive=False,
+                lines=2
             )
     
     with gr.Row():
@@ -136,7 +166,9 @@ with gr.Blocks(title="Signature Vectorizer - Crop Preview") as demo:
             preview_with_bbox,
             cropped_preview,
             crop_stats_display,
-            final_output
+            final_output,
+            bbox_coords_display,
+            resized_cropped_preview
         ]
     )
     
@@ -147,7 +179,9 @@ with gr.Blocks(title="Signature Vectorizer - Crop Preview") as demo:
             preview_with_bbox,
             cropped_preview,
             crop_stats_display,
-            final_output
+            final_output,
+            bbox_coords_display,
+            resized_cropped_preview
         ]
     )
 
